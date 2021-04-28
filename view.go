@@ -65,14 +65,16 @@ func makeForm() *guiView {
 		label  string
 	}{
 		{walk.NewAction(), 1, "Every &minute"},
-		{walk.NewAction(), 15, "1&5 minutes"},
+		{walk.NewAction(), 5, "&5 minutes"},
+		{walk.NewAction(), 10, "&10 minutes"},
+		{walk.NewAction(), 15, "15 m&inutes"},
 		{walk.NewAction(), 30, "&30 minutes"},
 		{walk.NewAction(), 60, "1 &hour"},
 	}
 	for _, item := range gui.intervals {
 		item.action.SetText(item.label)
 		item.action.SetCheckable(true)
-		item.action.Triggered().Attach( gui.setInterval(item.value) )
+		item.action.Triggered().Attach(gui.setInterval(item.value))
 		menu.Actions().Add(item.action)
 	}
 	gui.setInterval(settings.IntervalMinutes)()
@@ -80,7 +82,7 @@ func makeForm() *guiView {
 	menu.Actions().Add(walk.NewSeparatorAction())
 
 	action := walk.NewAction()
-	action.SetText("&Quit")
+	action.SetText("E&xit")
 	action.Triggered().Attach(func() { walk.App().Exit(0) })
 	menu.Actions().Add(action)
 
@@ -98,7 +100,19 @@ func (gui *guiView) Dispose() {
 
 func (gui *guiView) onTrayMouse(x, y int, button walk.MouseButton) {
 	if button == walk.LeftButton {
-		gui.window.Menu() // TODO: figure out how to open a damn menu
+		// TODO: figure out how to open a damn menu
+		gui.setActive(!settings.Active)
+
+		message := "Time notifications are now disabled."
+		if settings.Active {
+			s := "s"
+			if settings.IntervalMinutes == 1 {
+				s = ""
+			}
+			message = fmt.Sprintf("Speaking the time every %d minute%s.", settings.IntervalMinutes, s)
+		}
+
+		gui.tray.ShowInfo("Cuckoo", message+"\nRight click to change settings or exit")
 	}
 }
 
@@ -115,7 +129,6 @@ func (gui *guiView) setActive(value bool) {
 
 func (gui guiView) setInterval(value int) walk.EventHandler {
 	return func() {
-		fmt.Println("Setting interval to", value)
 		settings.IntervalMinutes = value
 		for _, info := range gui.intervals {
 			info.action.SetChecked(info.value == value)
