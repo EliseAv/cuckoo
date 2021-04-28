@@ -7,7 +7,7 @@ import (
 	"github.com/go-ole/go-ole/oleutil"
 )
 
-func speak(eventSource chan string) {
+func absorbSpeechEvents(eventSource chan string) {
 	// Not sure if we'll need initialization
 	err := ole.CoInitialize(0)
 	if err == nil {
@@ -15,11 +15,11 @@ func speak(eventSource chan string) {
 	}
 	object, err := oleutil.CreateObject("SAPI.SpVoice")
 	if err != nil {
-		panic(err)
+		log.Panic(err)
 	}
 	sapiVoice, err := object.QueryInterface(ole.IID_IDispatch)
 	if err != nil {
-		panic(err)
+		log.Panic(err)
 	}
 	for message := range eventSource {
 		_, err = oleutil.CallMethod(sapiVoice, "Speak", message)

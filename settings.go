@@ -12,23 +12,23 @@ type SettingsInfo struct {
 	IntervalMinutes int
 }
 
-var defaults = SettingsInfo{true, 60}
+const settingsFilename = "settings.yaml"
+
+var defaultSettings = SettingsInfo{true, 60}
+var configFolder = configdir.New("ekevoo", "cuckoo").QueryFolders(configdir.Global)[0]
 var settings = NewSettings()
 
-var configFolder = configdir.New("ekevoo", "cuckoo").QueryFolders(configdir.Local)[0]
-
 func NewSettings() SettingsInfo {
-	configFolder.MkdirAll()
-	payload, err := configFolder.ReadFile("settings.json")
+	payload, err := configFolder.ReadFile(settingsFilename)
 	if err != nil {
 		log.Print(err)
-		return defaults
+		return defaultSettings
 	}
 
 	var result SettingsInfo
 	if err := yaml.Unmarshal(payload, &result); err != nil {
 		log.Print(err)
-		return defaults
+		return defaultSettings
 	}
 
 	return result
@@ -39,5 +39,5 @@ func (settings SettingsInfo) Save() error {
 	if err != nil {
 		return err
 	}
-	return configFolder.WriteFile("settings.json", payload)
+	return configFolder.WriteFile(settingsFilename, payload)
 }

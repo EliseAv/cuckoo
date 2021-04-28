@@ -5,8 +5,8 @@ func main() {
 	defer form.Dispose()
 
 	channel := make(chan string)
-	go speak(channel)
-	go emitEnglishSpeakEvents(channel)
+	go emitEnglishSpeechEvents(channel)
+	go absorbSpeechEvents(channel)
 
 	form.window.Run()
 }

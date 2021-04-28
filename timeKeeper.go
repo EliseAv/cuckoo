@@ -19,7 +19,7 @@ func emitTimeEvents(timeEvents chan time.Time) {
 		thisMinute := now.Hour()*60 + now.Minute()
 		if lastMinute != thisMinute {
 			lastMinute = thisMinute
-			if thisMinute%settings.IntervalMinutes == 0 && settings.Active {
+			if settings.Active && thisMinute%settings.IntervalMinutes == 0 {
 				timeEvents <- now
 			}
 		}
@@ -28,7 +28,7 @@ func emitTimeEvents(timeEvents chan time.Time) {
 	}
 }
 
-func emitEnglishSpeakEvents(speakEvents chan string) {
+func emitEnglishSpeechEvents(speakEvents chan string) {
 	timeEvents := make(chan time.Time)
 	go emitTimeEvents(timeEvents)
 	for now := range timeEvents {

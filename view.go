@@ -3,120 +3,123 @@ package main
 import (
 	"bytes"
 	"embed"
+	"fmt"
 	"image"
 	_ "image/png"
+	"log"
 
 	"github.com/lxn/walk"
 	d "github.com/lxn/walk/declarative"
 )
 
-//go:embed *.ico *.png
+//go:embed *.png
 var icons embed.FS
 
-type formWidgets struct {
-	window                *walk.MainWindow
-	checkBox              *walk.CheckBox
-	radioButtons          [3]*walk.RadioButton
+type guiView struct {
+	window    *walk.MainWindow
+	active    *walk.Action
+	intervals []struct {
+		action *walk.Action
+		value  int
+		label  string
+	}
 	tray                  *walk.NotifyIcon
 	tiEnabled, tiDisabled walk.Image
 }
 
-func makeForm() *formWidgets {
-	form := &formWidgets{}
+func makeForm() *guiView {
+	gui := &guiView{}
+
 	err := d.MainWindow{
-		AssignTo: &form.window,
+		AssignTo: &gui.window,
 		Title:    "Cuckoo",
-		Size:     d.Size{Width: 400, Height: 300},
-		Layout:   d.VBox{},
-		Children: []d.Widget{
-			d.CheckBox{
-				AssignTo:            &form.checkBox,
-				Checked:             true,
-				Text:                "&Active",
-				OnCheckStateChanged: form.checkStateChanged,
-			},
-			d.RadioButtonGroupBox{
-				Title:  "Interval",
-				Layout: d.VBox{},
-				Buttons: []d.RadioButton{
-					{
-						Text:      "15 minutes",
-						OnClicked: form.setInterval(15),
-						AssignTo:  &form.radioButtons[0],
-						Value:     15,
-					},
-					{
-						Text:      "30 minutes",
-						OnClicked: form.setInterval(30),
-						AssignTo:  &form.radioButtons[1],
-						Value:     30,
-					},
-					{
-						Text:      "1 hour",
-						OnClicked: form.setInterval(60),
-						AssignTo:  &form.radioButtons[2],
-						Value:     60,
-					},
-				},
-			},
-		},
+		Visible:  false,
 	}.Create()
 	if err != nil {
-		panic(err)
-	}
-	form.window.SetVisible(false)
-
-	form.radioButtons[0].SetChecked(true)
-
-	form.tray, err = walk.NewNotifyIcon(form.window)
-	if err != nil {
-		panic(err)
+		log.Panic(err)
 	}
 
-	form.tiEnabled = newIconFromEmbeddedFilename("imgyeah.png")
-	form.tiDisabled = newIconFromEmbeddedFilename("imgok.png")
-	form.tray.SetIcon(form.tiEnabled)
-
-	if err := form.tray.SetVisible(true); err != nil {
-		panic(err)
+	if gui.tray, err = walk.NewNotifyIcon(gui.window); err != nil {
+		log.Panic(err)
 	}
+	gui.tray.SetVisible(true)
+	gui.tray.MouseDown().Attach(gui.onTrayMouse)
 
-	form.tray.MouseDown().Attach(form.mouseDown)
-	return form
+	gui.tiEnabled = newIconFromEmbeddedFilename("imgyeah.png")
+	gui.tiDisabled = newIconFromEmbeddedFilename("imgok.png")
+
+	menu := gui.tray.ContextMenu()
+
+	gui.active = walk.NewAction()
+	gui.active.SetText("&Active")
+	gui.active.SetCheckable(true)
+	gui.active.Triggered().Attach(func() { gui.setActive(gui.active.Checked()) })
+	menu.Actions().Add(gui.active)
+	gui.setActive(settings.Active)
+
+	menu.Actions().Add(walk.NewSeparatorAction())
+
+	gui.intervals = []struct {
+		action *walk.Action
+		value  int
+		label  string
+	}{
+		{walk.NewAction(), 1, "Every &minute"},
+		{walk.NewAction(), 15, "1&5 minutes"},
+		{walk.NewAction(), 30, "&30 minutes"},
+		{walk.NewAction(), 60, "1 &hour"},
+	}
+	for _, item := range gui.intervals {
+		item.action.SetText(item.label)
+		item.action.SetCheckable(true)
+		item.action.Triggered().Attach( gui.setInterval(item.value) )
+		menu.Actions().Add(item.action)
+	}
+	gui.setInterval(settings.IntervalMinutes)()
+
+	menu.Actions().Add(walk.NewSeparatorAction())
+
+	action := walk.NewAction()
+	action.SetText("&Quit")
+	action.Triggered().Attach(func() { walk.App().Exit(0) })
+	menu.Actions().Add(action)
+
+	return gui
 }
 
-func (form *formWidgets) Dispose() {
-	if form.tray != nil {
-		form.tray.Dispose()
+func (gui *guiView) Dispose() {
+	if tray := gui.tray; tray != nil {
+		tray.Dispose()
 	}
-	if form.window != nil {
-		form.window.Dispose()
+	if window := gui.window; window != nil {
+		window.Dispose()
 	}
 }
 
-func (form *formWidgets) checkStateChanged() {
-	settings.Active = form.checkBox.Checked()
-	if form.tray != nil {
-		if settings.Active {
-			form.tray.SetIcon(form.tiEnabled)
-		} else {
-			form.tray.SetIcon(form.tiDisabled)
-		}
+func (gui *guiView) onTrayMouse(x, y int, button walk.MouseButton) {
+	if button == walk.LeftButton {
+		gui.window.Menu() // TODO: figure out how to open a damn menu
+	}
+}
+
+func (gui *guiView) setActive(value bool) {
+	settings.Active = value
+	gui.active.SetChecked(value)
+	if settings.Active {
+		gui.tray.SetIcon(gui.tiEnabled)
+	} else {
+		gui.tray.SetIcon(gui.tiDisabled)
 	}
 	settings.Save()
 }
 
-func (form *formWidgets) mouseDown(x, y int, button walk.MouseButton) {
-	if button == walk.LeftButton {
-		form.checkBox.SetChecked(!form.checkBox.Checked())
-	} else if button == walk.RightButton {
-		form.window.SetVisible(!form.window.Visible())
-	}
-}
-
-func (form formWidgets) setInterval(value int) walk.EventHandler {
+func (gui guiView) setInterval(value int) walk.EventHandler {
 	return func() {
+		fmt.Println("Setting interval to", value)
 		settings.IntervalMinutes = value
+		for _, info := range gui.intervals {
+			info.action.SetChecked(info.value == value)
+		}
 		settings.Save()
 	}
 }
@@ -124,15 +127,15 @@ func (form formWidgets) setInterval(value int) walk.EventHandler {
 func newIconFromEmbeddedFilename(filename string) walk.Image {
 	payload, err := icons.ReadFile(filename)
 	if err != nil {
-		panic(err)
+		log.Panic(err)
 	}
 	img, _, err := image.Decode(bytes.NewReader(payload))
 	if err != nil {
-		panic(err)
+		log.Panic(err)
 	}
 	icon, err := walk.NewBitmapFromImageForDPI(img, 96)
 	if err != nil {
-		panic(err)
+		log.Panic(err)
 	}
 	return icon
 }
