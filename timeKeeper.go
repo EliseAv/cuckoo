@@ -28,11 +28,11 @@ func emitTimeEvents(timeEvents chan time.Time) {
 	}
 }
 
-func emitEnglishSpeechEvents(speakEvents chan string) {
+func emitEnglishSpeechEvents() {
 	timeEvents := make(chan time.Time)
 	go emitTimeEvents(timeEvents)
 	for now := range timeEvents {
-		speakEvents <- timeToEnglishText(now)
+		speak(timeToEnglishText(now))
 	}
 }
 
