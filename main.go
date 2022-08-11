@@ -4,7 +4,7 @@ func main() {
 	form := makeForm()
 	defer form.Dispose()
 
-	go emitEnglishSpeechEvents()
+	go speakTimeEvents()
 
 	form.window.Run()
 }

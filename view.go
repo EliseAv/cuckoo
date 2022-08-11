@@ -12,8 +12,8 @@ import (
 	d "github.com/lxn/walk/declarative"
 )
 
-//go:embed *.png
-var icons embed.FS
+//go:embed windows.manifest *.png
+var resources embed.FS
 
 type guiView struct {
 	window    *walk.MainWindow
@@ -28,8 +28,7 @@ type guiView struct {
 }
 
 func makeForm() *guiView {
-	gui := &guiView{}
-
+	var gui guiView
 	err := d.MainWindow{
 		AssignTo: &gui.window,
 		Title:    "Cuckoo",
@@ -42,7 +41,7 @@ func makeForm() *guiView {
 	if gui.tray, err = walk.NewNotifyIcon(gui.window); err != nil {
 		log.Panic(err)
 	}
-	gui.tray.SetVisible(true)
+	_ = gui.tray.SetVisible(true)
 	gui.tray.MouseDown().Attach(gui.onTrayMouse)
 
 	gui.tiEnabled = newIconFromEmbeddedFilename("imgyeah.png")
@@ -51,13 +50,13 @@ func makeForm() *guiView {
 	menu := gui.tray.ContextMenu()
 
 	gui.active = walk.NewAction()
-	gui.active.SetText("&Active")
-	gui.active.SetCheckable(true)
+	_ = gui.active.SetText("&Active")
+	_ = gui.active.SetCheckable(true)
 	gui.active.Triggered().Attach(func() { gui.setActive(gui.active.Checked()) })
-	menu.Actions().Add(gui.active)
+	_ = menu.Actions().Add(gui.active)
 	gui.setActive(settings.Active)
 
-	menu.Actions().Add(walk.NewSeparatorAction())
+	_ = menu.Actions().Add(walk.NewSeparatorAction())
 
 	gui.intervals = []struct {
 		action *walk.Action
@@ -72,33 +71,33 @@ func makeForm() *guiView {
 		{walk.NewAction(), 60, "1 &hour"},
 	}
 	for _, item := range gui.intervals {
-		item.action.SetText(item.label)
-		item.action.SetCheckable(true)
+		_ = item.action.SetText(item.label)
+		_ = item.action.SetCheckable(true)
 		item.action.Triggered().Attach(gui.setInterval(item.value))
-		menu.Actions().Add(item.action)
+		_ = menu.Actions().Add(item.action)
 	}
 	gui.setInterval(settings.IntervalMinutes)()
 
-	menu.Actions().Add(walk.NewSeparatorAction())
+	_ = menu.Actions().Add(walk.NewSeparatorAction())
 
 	action := walk.NewAction()
-	action.SetText("E&xit")
+	_ = action.SetText("E&xit")
 	action.Triggered().Attach(func() { walk.App().Exit(0) })
-	menu.Actions().Add(action)
+	_ = menu.Actions().Add(action)
 
-	return gui
+	return &gui
 }
 
 func (gui *guiView) Dispose() {
 	if tray := gui.tray; tray != nil {
-		tray.Dispose()
+		_ = tray.Dispose()
 	}
 	if window := gui.window; window != nil {
 		window.Dispose()
 	}
 }
 
-func (gui *guiView) onTrayMouse(x, y int, button walk.MouseButton) {
+func (gui *guiView) onTrayMouse(_, _ int, button walk.MouseButton) {
 	if button == walk.LeftButton {
 		// TODO: figure out how to open a damn menu
 		gui.setActive(!settings.Active)
@@ -112,41 +111,45 @@ func (gui *guiView) onTrayMouse(x, y int, button walk.MouseButton) {
 			message = fmt.Sprintf("Speaking the time every %d minute%s.", settings.IntervalMinutes, s)
 		}
 
-		gui.tray.ShowInfo("Cuckoo", message+"\nRight click to change settings or exit")
+		_ = gui.tray.ShowInfo("Cuckoo", message+"\nRight click to change settings or exit")
 	}
 }
 
 func (gui *guiView) setActive(value bool) {
 	settings.Active = value
-	gui.active.SetChecked(value)
+	_ = gui.active.SetChecked(value)
 	if settings.Active {
-		gui.tray.SetIcon(gui.tiEnabled)
+		_ = gui.tray.SetIcon(gui.tiEnabled)
 	} else {
-		gui.tray.SetIcon(gui.tiDisabled)
+		_ = gui.tray.SetIcon(gui.tiDisabled)
 	}
-	settings.Save()
+	_ = settings.Save()
 }
 
 func (gui guiView) setInterval(value int) walk.EventHandler {
 	return func() {
 		settings.IntervalMinutes = value
 		for _, info := range gui.intervals {
-			info.action.SetChecked(info.value == value)
+			_ = info.action.SetChecked(info.value == value)
 		}
-		settings.Save()
+		_ = settings.Save()
 	}
 }
 
 func newIconFromEmbeddedFilename(filename string) walk.Image {
-	payload, err := icons.ReadFile(filename)
+	payload, err := resources.ReadFile(filename)
 	if err != nil {
 		log.Panic(err)
 	}
-	img, _, err := image.Decode(bytes.NewReader(payload))
+
+	var img image.Image
+	img, _, err = image.Decode(bytes.NewReader(payload))
 	if err != nil {
 		log.Panic(err)
 	}
-	icon, err := walk.NewBitmapFromImageForDPI(img, 96)
+
+	var icon walk.Image
+	icon, err = walk.NewBitmapFromImageForDPI(img, 96)
 	if err != nil {
 		log.Panic(err)
 	}

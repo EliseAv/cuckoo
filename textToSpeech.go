@@ -14,11 +14,14 @@ func speak(message string) {
 		defer ole.CoUninitialize()
 	}
 
-	object, err := oleutil.CreateObject("SAPI.SpVoice")
+	var object *ole.IUnknown
+	object, err = oleutil.CreateObject("SAPI.SpVoice")
 	if err != nil {
 		log.Panic(err)
 	}
-	sapiVoice, err := object.QueryInterface(ole.IID_IDispatch)
+
+	var sapiVoice *ole.IDispatch
+	sapiVoice, err = object.QueryInterface(ole.IID_IDispatch)
 	if err != nil {
 		log.Panic(err)
 	}
